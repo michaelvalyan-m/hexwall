@@ -1,6 +1,6 @@
 // Quartile rollup (FUNCTIONAL_SPEC §4) + wall sort (§6). Pure.
 
-import { SEVERITY_RANK, worst, worstOf } from './config';
+import { CONFIG, SEVERITY_RANK, worst, worstOf } from './config';
 import { nodeChip } from './nodeHealth';
 import type { NodeView, PodView, QuartileBox, Rollup, Severity } from './types';
 
@@ -8,10 +8,19 @@ export function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
 
-// Intensity weights and scale (PLATFORM_MODEL §5). Lives in config in the full platform.
-const W_FRACTION = 0.5;
-const W_MAGNITUDE = 0.5;
-const LOG_MAX = 4; // log10(10000) — 10k affected pods = full intensity
+// THE single intensity function (PLATFORM_MODEL §4 `intensityFrom` / §5). Applied at every
+// level of the recursive rollup (node, leaf, aggregate) so the map is consistent — weights
+// come from CONFIG, never inlined. fraction drives the floor; log-scaled magnitude makes
+// absolute scale matter (10k affected must look scarier than 1).
+export function intensityFrom(affected: number, affectedFraction: number): number {
+  return clamp(
+    CONFIG.INTENSITY_W_FRACTION * affectedFraction +
+      CONFIG.INTENSITY_W_MAGNITUDE *
+        Math.min(1, Math.log10(affected + 1) / CONFIG.INTENSITY_LOG_MAX),
+    0,
+    1,
+  );
+}
 
 // Compute the generic Rollup for a k8s node from its pods + the node's own health.
 // nodeHealth is factored into rollup.severity so the Cell tree aggregates correctly
@@ -25,11 +34,7 @@ export function computeNodeRollup(pods: PodView[], nodeHealth: Severity = 'ok'):
   const affectedFraction = total > 0 ? affected / total : 0;
   const podSeverity: Severity = active.length > 0 ? worstOf(active.map((p) => p.state)) : 'ok';
   const severity = worst(podSeverity, nodeHealth);
-  const intensity = clamp(
-    W_FRACTION * affectedFraction + W_MAGNITUDE * Math.min(1, Math.log10(affected + 1) / LOG_MAX),
-    0,
-    1,
-  );
+  const intensity = intensityFrom(affected, affectedFraction);
   return { severity, total, affected, affectedFraction, intensity, bySeverity };
 }
 

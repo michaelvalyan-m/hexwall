@@ -11,6 +11,11 @@ export const CONFIG = {
   CPU_WARN: 90,
   NET_WARN: 5,
   FOLD_HYSTERESIS_SECONDS: 45,
+  // Pulsation intensity weights (PLATFORM_MODEL §5). Single source of truth — consumed by
+  // the one `intensityFrom()` helper used at every level of the recursive rollup.
+  INTENSITY_W_FRACTION: 0.5,
+  INTENSITY_W_MAGNITUDE: 0.5,
+  INTENSITY_LOG_MAX: 4, // log10(10000): 10k affected leaf units → full intensity
 } as const;
 
 export type Config = typeof CONFIG;

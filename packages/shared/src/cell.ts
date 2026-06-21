@@ -3,15 +3,10 @@
 // recursive rollups that aggregate correctly from pod → node → resource → account → provider.
 
 import { worstOf } from './config';
-import { clamp } from './rollup';
+import { intensityFrom } from './rollup';
 import type { Cell, Level, QuartileBox, Rollup, Severity } from './types';
 
 const ZERO_BY_SEVERITY: Record<Severity, number> = { ok: 0, warn: 0, crit: 0, gone: 0 };
-
-// Intensity weights (PLATFORM_MODEL §5).
-const W_FRACTION = 0.5;
-const W_MAGNITUDE = 0.5;
-const LOG_MAX = 4; // log10(10000) → full intensity
 
 /** Pod base case: roll up a single leaf pod into a Rollup (PLATFORM_MODEL §4). */
 export function rollupLeaf(severity: Severity): Rollup {
@@ -19,21 +14,12 @@ export function rollupLeaf(severity: Severity): Rollup {
   const affected = severity === 'warn' || severity === 'crit' ? 1 : 0;
   const total = active ? 1 : 0;
   const affectedFraction = total > 0 ? affected : 0;
-  const intensity =
-    affected > 0
-      ? clamp(
-          W_FRACTION * affectedFraction +
-            W_MAGNITUDE * Math.min(1, Math.log10(affected + 1) / LOG_MAX),
-          0,
-          1,
-        )
-      : 0;
   return {
     severity,
     total,
     affected,
     affectedFraction,
-    intensity,
+    intensity: intensityFrom(affected, affectedFraction),
     bySeverity: { ...ZERO_BY_SEVERITY, [severity]: 1 },
   };
 }
@@ -60,12 +46,7 @@ export function rollupFromChildren(children: Cell[]): Rollup {
       bySeverity[k] += c.rollup.bySeverity[k];
     }
   }
-  const intensity = clamp(
-    W_FRACTION * affectedFraction +
-      W_MAGNITUDE * Math.min(1, Math.log10(affected + 1) / LOG_MAX),
-    0,
-    1,
-  );
+  const intensity = intensityFrom(affected, affectedFraction);
   return { severity, total, affected, affectedFraction, intensity, bySeverity };
 }
 

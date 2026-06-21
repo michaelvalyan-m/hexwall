@@ -7,16 +7,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import {
-  RollupEngine,
-  boxToCell,
-  buildResourceCell,
-  computeBox,
-  type Cell,
-  type ClusterSnapshot,
-  type NodeView,
-} from '@tessera/shared';
+import { RollupEngine, type ClusterSnapshot, type NodeView } from '@tessera/shared';
 import type { Clock, ClusterProvider } from './providers/provider';
+import { EksAdapter } from './providers/eksAdapter';
 import type { MockProvider } from './providers/mockProvider';
 import type { TimelineLabel } from './providers/fixtures';
 
@@ -55,6 +48,9 @@ export function buildServer(opts: BuildServerOptions): HexwallServer {
   const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true });
 
   const engine = new RollupEngine();
+  // The EKS resource adapter (PLATFORM_MODEL §7) is the single builder for the cluster Cell;
+  // the /api/cell route delegates to it. Clock-injected so the cell timestamp is deterministic.
+  const adapter = new EksAdapter(provider, cellId, cluster, () => clock.now());
   const routes: { method: string; url: string }[] = [];
   app.addHook('onRoute', (r) => {
     const methods = Array.isArray(r.method) ? r.method : [r.method];
@@ -105,24 +101,20 @@ export function buildServer(opts: BuildServerOptions): HexwallServer {
   });
 
   // ---- Cell tree (PLATFORM_MODEL §6) — GET /api/cell/<global-path-id> ----
-  // Returns the Cell for the given id. For the EKS resource cell, includes node children.
-  // Higher-level stubs (service, account, provider, estate) are built on-the-fly from the
-  // current snapshot so they always reflect live state.
+  // Serves the EKS resource cell (renderKey 'eks-cluster') via the adapter (§9.4). NOTE: only
+  // the resource cell is exposed in this slice; the parent stub levels (provider/account/
+  // service/estate) and node/pod child cells exist in the Cell model (buildStubCell) but are
+  // not yet routed — node/pod are sub-zooms held in web React state (§9 item 5). Unknown ids
+  // 404. The cell's rollup.total is an ACTIVE (non-gone) leaf count and so intentionally differs
+  // from ClusterSnapshot.totals.pods, which is a RAW pod count (see types.ts) — they are not
+  // the same metric and callers must not assume equality.
   app.get<{ Params: { '*': string } }>('/api/cell/*', async (req, reply) => {
     const id = (req.params as Record<string, string>)['*'];
-
-    if (id === cellId) {
-      // EKS resource cell: build from the engine's current processed state so changedAt,
-      // sort order, and fold state are all consistent with the live snapshot.
-      const foldedIds = engine.getFoldedIds();
-      const foldedCells: Cell[] = latestNodes
-        .filter((n) => foldedIds.has(n.name))
-        .map((n) => boxToCell(computeBox(n), cellId));
-      const visibleCells: Cell[] = latestSnapshot.boxes.map((b) => boxToCell(b, cellId));
-      return buildResourceCell(cellId, cluster, [...visibleCells, ...foldedCells], latestSnapshot.generatedAt);
+    try {
+      return await adapter.resourceTree(id);
+    } catch {
+      return reply.code(404).send({ error: 'cell not found', id });
     }
-
-    return reply.code(404).send({ error: 'cell not found', id });
   });
 
   // ---- SSE: live cluster snapshots ----

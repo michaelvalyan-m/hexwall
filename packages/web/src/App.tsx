@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ClusterSnapshot } from '@tessera/shared';
 import { api, subscribeSnapshots } from './api';
 import { Wall } from './components/Wall';
@@ -26,8 +26,7 @@ export function App() {
   const [snap, setSnap] = useState<Snap | null>(null);
   const [view, setView] = useState<View>({ level: 'wall' });
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
-  // Track whether we've set the URL so we don't replaceState on every re-render.
-  const urlSet = useRef(false);
+  const cellId = snap?.snapshot.cellId;
 
   // Theme effect
   useEffect(() => {
@@ -41,31 +40,16 @@ export function App() {
     return () => mq.removeEventListener('change', apply);
   }, [themeMode]);
 
-  // Update URL to /cell/<cellId> once the first snapshot arrives (PLATFORM_MODEL §5).
-  // The internal node/pod zoom stays in React state — they are sub-zooms within the EKS leaf
-  // renderer and do not need their own top-level cell URLs (PLATFORM_MODEL §9.5).
+  // Reflect the resolved cluster cell in the URL as /cell/<cellId> (PLATFORM_MODEL §6). Keyed on
+  // the stable cellId so it runs once, not on every SSE frame. The node/pod zoom stays in React
+  // state — those are sub-zooms within the EKS leaf renderer, not separate cell URLs (§9 item 5),
+  // so no pushState/popstate history is maintained for them.
   useEffect(() => {
-    if (!snap || urlSet.current) return;
-    const cellId = snap.snapshot.cellId;
-    const currentId = cellIdFromPath();
-    if (currentId !== cellId) {
+    if (!cellId) return;
+    if (cellIdFromPath() !== cellId) {
       history.replaceState(null, '', `/cell/${cellId}`);
     }
-    urlSet.current = true;
-  }, [snap]);
-
-  // Handle browser back/forward to the cluster cell URL → reset to wall view.
-  useEffect(() => {
-    const onPop = () => {
-      const id = cellIdFromPath();
-      // Any valid cell URL or root '/' maps back to the wall in the POC.
-      if (!id || (snap && id === snap.snapshot.cellId)) {
-        setView({ level: 'wall' });
-      }
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, [snap]);
+  }, [cellId]);
 
   useEffect(() => {
     let alive = true;

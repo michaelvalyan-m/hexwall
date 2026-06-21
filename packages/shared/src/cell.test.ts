@@ -2,10 +2,15 @@
 
 import { describe, expect, it } from 'vitest';
 import { boxToCell, buildResourceCell, buildStubCell, rollupFromChildren, rollupLeaf } from './cell';
-import { computeBox } from './rollup';
+import { computeBox, computeNodeRollup, intensityFrom } from './rollup';
 import { node, pods } from './_testutil';
+import type { Cell, Severity } from './types';
 
 const CLUSTER_ID = 'aws/123456789012/eks/test-cluster';
+
+function leafCell(severity: Severity, i: number): Cell {
+  return { id: `p${i}`, level: 'pod', kind: 'pod', label: `p${i}`, rollup: rollupLeaf(severity), changedAt: 0 };
+}
 
 describe('rollupLeaf — pod base case (PLATFORM_MODEL §4)', () => {
   it('ok pod: total 1, affected 0, severity ok', () => {
@@ -129,6 +134,46 @@ describe('rollupFromChildren — recursive aggregation (PLATFORM_MODEL §4)', ()
     expect(many.rollup.intensity).toBeGreaterThan(few.rollup.intensity);
     expect(few.rollup.intensity).toBeGreaterThan(0);
     expect(many.rollup.intensity).toBeLessThanOrEqual(1);
+  });
+
+  it('non-empty children that are all gone roll up to a zero/ok rollup', () => {
+    // exercises the total===0 branch of rollupFromChildren with a non-empty children array
+    const cells = [
+      boxToCell(computeBox(node('g1', 'ok', pods(0, 0, 0, 5))), CLUSTER_ID),
+      boxToCell(computeBox(node('g2', 'ok', pods(0, 0, 0, 3))), CLUSTER_ID),
+    ];
+    const r = rollupFromChildren(cells);
+    expect(r.total).toBe(0);
+    expect(r.affected).toBe(0);
+    expect(r.affectedFraction).toBe(0);
+    expect(r.intensity).toBe(0);
+    expect(r.severity).toBe('ok');
+    expect(r.bySeverity.gone).toBe(8);
+  });
+});
+
+describe('intensity — single source of truth (PLATFORM_MODEL §4/§5)', () => {
+  it('rollupLeaf warn pins the exact §5 formula value', () => {
+    // 0.5*1 + 0.5*min(1, log10(2)/4) — freezes the CONFIG weights for the leaf base case.
+    const expected = 0.5 * 1 + 0.5 * Math.min(1, Math.log10(2) / 4);
+    expect(rollupLeaf('warn').intensity).toBeCloseTo(expected, 12);
+    expect(rollupLeaf('crit').intensity).toBeCloseTo(expected, 12); // same affected=1 magnitude
+    expect(rollupLeaf('ok').intensity).toBe(0);
+    expect(rollupLeaf('gone').intensity).toBe(0);
+  });
+
+  it('node-level and aggregated rollups compute identical intensity for the same pods', () => {
+    // Locks computeNodeRollup, rollupLeaf and rollupFromChildren to the one intensityFrom helper.
+    for (const [ok, warn, crit] of [[8, 2, 3], [99, 0, 1], [0, 0, 20], [5, 5, 0]]) {
+      const mix = pods(ok, warn, crit);
+      const flat = computeNodeRollup(mix);
+      const agg = rollupFromChildren(mix.map((p, i) => leafCell(p.state, i)));
+      expect(agg.total).toBe(flat.total);
+      expect(agg.affected).toBe(flat.affected);
+      expect(agg.affectedFraction).toBeCloseTo(flat.affectedFraction, 12);
+      expect(agg.intensity).toBeCloseTo(flat.intensity, 12);
+      expect(agg.intensity).toBeCloseTo(intensityFrom(flat.affected, flat.affectedFraction), 12);
+    }
   });
 });
 

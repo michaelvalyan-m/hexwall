@@ -8,3 +8,4 @@ test-results/
 .DS_Store
 e2e/__screens__/
 .tmp_verify/
+.claude/

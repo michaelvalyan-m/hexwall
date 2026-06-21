@@ -188,7 +188,7 @@ test('13. theme switcher toggles light / dark / system', async ({ page }) => {
   await expect(page.getByTestId('theme-switcher')).toBeVisible();
 });
 
-test('14. URL routing — /cell/<cluster-id> renders the honeycomb wall (PLATFORM_MODEL §9.5)', async ({
+test('14. URL routing — /cell/<cluster-id> renders the honeycomb wall (PLATFORM_MODEL §9 item 5)', async ({
   page,
 }) => {
   // Navigate directly to the full Tessera cell URL (bypasses the / → /cell/<id> redirect).

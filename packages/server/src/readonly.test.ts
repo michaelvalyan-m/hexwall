@@ -41,6 +41,7 @@ describe('read-only route guard', () => {
       '/api/pod/:ns/:name',
       '/api/pod/:ns/:name/logs',
       '/api/healthy',
+      '/api/cell/*',
     ]) {
       expect(urls.has(u)).toBe(true);
     }

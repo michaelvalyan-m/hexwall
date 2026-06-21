@@ -14,8 +14,10 @@ export const api = {
   pod: (ns: string, name: string) =>
     getJSON<PodDetail>(`/api/pod/${encodeURIComponent(ns)}/${encodeURIComponent(name)}`),
   healthy: () => getJSON<{ nodes: NodeView[] }>('/api/healthy'),
-  // Fetch a Tessera Cell by its global path id (PLATFORM_MODEL §6). The cell id contains
-  // slashes and must NOT be percent-encoded — the server route matches on the full path.
+  // Fetch a Tessera Cell by its global path id (PLATFORM_MODEL §6). The id is a slash-delimited
+  // path and is NOT percent-encoded — the server route matches on the full path. In this slice
+  // only the EKS *resource* cell id resolves (renderKey 'eks-cluster'); node/pod child ids and
+  // parent stub levels are not yet routed (node/pod are React-state sub-zooms — §9 item 5).
   cell: (id: string) => getJSON<Cell>(`/api/cell/${id}`),
 };
 

@@ -93,3 +93,32 @@ issues**.
 ## D6 — Severity colors / e2e assertions
 e2e asserts on `data-sev` / `data-health` attributes (semantic) in addition to color, so tests
 are robust to exact hex values while UI uses the §1 colors via CSS variables.
+
+## D11 — PLATFORM_MODEL §9 platform slice (Tessera) — scope & reconciliations
+Implementing the §9 change list (Cell/Rollup model, global ids, generic rollup, ResourceAdapter,
+`/cell/:id` routing, Tessera rename) surfaced a few decisions, recorded here after an adversarial
+multi-agent review of the change:
+
+- **`Rollup.total` is an ACTIVE (non-gone) leaf count, not a raw count.** PLATFORM_MODEL §3/§4
+  describe `total` loosely as "descendant LEAF units." Taken literally that would include `gone`
+  pods, but `FUNCTIONAL_SPEC §4` — the **declared source of truth** — defines the rollup
+  denominator as `active = state !== 'gone'`, and §4.1's worked table (e.g. "10 (9/0/1) + 5
+  completed → fraction 0.100") depends on excluding gone. Since the quartile math derives from the
+  same `computeNodeRollup`, `total` MUST be active-only or the §4.1 table breaks. So `Rollup.total`
+  excludes gone. Consequence: it intentionally differs from `ClusterSnapshot.totals.pods`, which is
+  a **raw** pod count (it drives the "N pods" header, not the rollup). They are different metrics;
+  callers must not assume equality. Documented at the `/api/cell` route and in `types.ts`.
+
+- **`/api/cell/*` exposes only the EKS resource cell in this slice.** The cell id scheme (§6) is
+  fully routable in principle, but the POC web app only needs the resource cell (renderKey
+  `eks-cluster` → honeycomb). Parent stub levels (provider/account/service/estate) and node/pod
+  child cells exist in the Cell model (`buildStubCell`, `boxToCell`) and are unit-tested, but are
+  **not yet routed**; node/pod remain React-state sub-zooms within the leaf renderer (§9 item 5).
+  Unknown ids 404. `EksAdapter` (§7/§9.4) is the **single** builder for the resource cell and the
+  route delegates to it (no duplicated build path).
+
+- **Intensity weights live in `CONFIG`.** Per §5 ("Weights live in config.ts") the pulsation
+  weights (`INTENSITY_W_FRACTION/W_MAGNITUDE/LOG_MAX`) are in `config.ts`, and a single exported
+  `intensityFrom(affected, affectedFraction)` helper (§4's named function) is the only place the
+  formula is written — consumed by `computeNodeRollup`, `rollupLeaf`, and `rollupFromChildren`, so
+  the "same numbers, two encodings" invariant cannot drift. A unit test pins the three to equality.
