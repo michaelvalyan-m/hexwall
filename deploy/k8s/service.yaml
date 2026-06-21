@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tessera
+  namespace: tessera
+  labels:
+    app.kubernetes.io/name: tessera
+spec:
+  # ClusterIP only — NO external exposure. Reach the UI with `kubectl port-forward` (no public
+  # surface, no cloud load balancer). To expose it later, change type and add an Ingress.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tessera
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

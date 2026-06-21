@@ -1,0 +1,20 @@
+# Defense-in-depth: deny pod-network ingress to the (unauthenticated) monitoring API so a random
+# pod elsewhere in the cluster can't pull /api/snapshot over the ClusterIP. Egress stays open —
+# the pod MUST reach the API server (list/watch/logs) and DNS. `kubectl port-forward` and kubelet
+# health probes are NOT pod-network ingress, so they are unaffected. On clusters without a policy
+# engine (EKS VPC-CNI network-policy disabled / no Calico) this is a harmless no-op.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tessera-default-deny-ingress
+  namespace: tessera
+  labels:
+    app.kubernetes.io/name: tessera
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tessera
+  policyTypes: ["Ingress", "Egress"]
+  ingress: [] # deny all pod-to-pod ingress
+  egress:
+    - {} # allow all egress (API server + DNS). Tighten to the apiserver CIDR + 53/tcp+udp later.

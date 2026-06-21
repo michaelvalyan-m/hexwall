@@ -140,11 +140,17 @@ export class KubeProvider implements ClusterProvider {
     this.watcher = opts.watch;
   }
 
-  /** Build a KubeProvider bound to the real cluster (loads kubeconfig from the default chain). */
+  /** Build a KubeProvider bound to the real cluster. In-cluster (the Model A deployment) it uses
+   *  the pod's ServiceAccount token directly; otherwise it falls back to the default kubeconfig
+   *  chain (dev / out-of-cluster). Either way it only ever issues read verbs. */
   static async createReal(): Promise<KubeProvider> {
     const k8s = await import('@kubernetes/client-node');
     const kc = new k8s.KubeConfig();
-    kc.loadFromDefault();
+    if (process.env.KUBERNETES_SERVICE_HOST) {
+      kc.loadFromCluster(); // running in a pod: read-only ServiceAccount token + in-cluster CA
+    } else {
+      kc.loadFromDefault();
+    }
     const core = kc.makeApiClient(k8s.CoreV1Api) as unknown as ReadOnlyCoreApi;
     const watch = new k8s.Watch(kc) as unknown as ReadOnlyWatch;
     return new KubeProvider({ core, watch });

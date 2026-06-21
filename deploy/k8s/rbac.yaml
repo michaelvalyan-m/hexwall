@@ -1,0 +1,34 @@
+# READ-ONLY cluster access — the entire security contract of the POC. The app needs exactly:
+#   nodes, pods, events  → get/list/watch     (the wall + node/pod detail + live updates)
+#   pods/log             → get                 (pod-detail log panel)
+# Nothing else. There is NO create/update/patch/delete on any resource. This mirrors the
+# read-only verbs the KubeProvider actually issues (FUNCTIONAL_SPEC §9), and `kubectl auth can-i`
+# can prove it after deploy (see deploy/README.md).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tessera-readonly
+  labels:
+    app.kubernetes.io/name: tessera
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tessera-readonly
+  labels:
+    app.kubernetes.io/name: tessera
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tessera-readonly
+subjects:
+  - kind: ServiceAccount
+    name: tessera
+    namespace: tessera

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tessera
+  namespace: tessera
+  labels:
+    app.kubernetes.io/name: tessera
+spec:
+  replicas: 1 # single replica: snapshot/fold state is in-memory; one watcher is enough for the POC
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tessera
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tessera
+    spec:
+      serviceAccountName: tessera
+      automountServiceAccountToken: true
+      # ---- pod-level hardening (Pod Security Standard: restricted) ----
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532 # distroless 'nonroot'
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tessera
+          image: __IMAGE__ # filled in by `make deploy IMAGE=...` (or edit before kubectl apply)
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TESSERA_PROVIDER
+              value: "kube"
+            - name: TESSERA_SERVE_WEB
+              value: "1"
+            - name: PORT
+              value: "8080"
+            # Display name / cell label for this cluster (PLATFORM_MODEL §6). Set to your cluster.
+            - name: TESSERA_CLUSTER
+              value: "prod-eks"
+            # Node's libc tmp; kept on the writable emptyDir below so the root FS stays read-only.
+            - name: TMPDIR
+              value: "/tmp"
+          # ---- container-level hardening ----
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # writable scratch so readOnlyRootFilesystem can stay true
+        - name: tmp
+          emptyDir: {}

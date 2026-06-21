@@ -1,0 +1,28 @@
+# Keep the build context small and free of artifacts/secrets.
+node_modules
+**/node_modules
+**/dist
+.git
+.github
+.claude
+.tmp_verify
+coverage
+playwright-report
+test-results
+e2e/__screens__
+*.log
+.DS_Store
+# docs/screenshots not needed to build the image
+e2e
+# never let credential-shaped files enter the build context (defense-in-depth; none exist today,
+# but a stray local file must not be COPY'd in — Vite would inline VITE_* env into the web bundle)
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+.npmrc
+**/.npmrc
+*.kubeconfig
+kubeconfig
+.aws
