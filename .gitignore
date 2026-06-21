@@ -9,3 +9,7 @@ test-results/
 e2e/__screens__/
 .tmp_verify/
 .claude/
+
+# local test artifacts
+.playwright-mcp/
+live-*.png
