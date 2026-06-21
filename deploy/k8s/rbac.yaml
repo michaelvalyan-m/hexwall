@@ -17,6 +17,11 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+  # node CPU/memory usage % (metrics-server). Read-only; optional — absent metrics-server the app
+  # degrades to 0% usage and still works off node conditions + pod states.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

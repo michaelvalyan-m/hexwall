@@ -40,13 +40,58 @@ export interface ReadOnlyWatch {
   ): Promise<{ abort(): void }>;
 }
 
+// Read-only metrics surface (metrics.k8s.io via metrics-server). GET only.
+export interface ReadOnlyMetrics {
+  getNodeMetrics(): Promise<{ items?: { metadata?: { name?: string }; usage?: { cpu?: string; memory?: string } }[] }>;
+}
+
 export interface KubeProviderOptions {
   core?: ReadOnlyCoreApi;
   watch?: ReadOnlyWatch;
+  metrics?: ReadOnlyMetrics;
 }
 
 function items(res: any): any[] {
   return res?.items ?? res?.body?.items ?? [];
+}
+
+/** Parse a Kubernetes CPU quantity (e.g. '250m', '79257288n', '2') to cores. */
+export function cpuToCores(q: string | undefined): number {
+  if (!q) return 0;
+  const m = /^([0-9.]+)([a-zµ]*)$/.exec(q.trim());
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  switch (m[2]) {
+    case 'n':
+      return n / 1e9;
+    case 'u':
+    case 'µ':
+      return n / 1e6;
+    case 'm':
+      return n / 1e3;
+    case 'k':
+      return n * 1e3;
+    default:
+      return n; // plain cores
+  }
+}
+
+/** Parse a Kubernetes memory quantity (e.g. '237984Ki', '8Gi', '1048576') to bytes. */
+export function memToBytes(q: string | undefined): number {
+  if (!q) return 0;
+  const m = /^([0-9.]+)([A-Za-z]*)$/.exec(q.trim());
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  const mult: Record<string, number> = {
+    '': 1,
+    Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4, Pi: 1024 ** 5,
+    k: 1e3, K: 1e3, M: 1e6, G: 1e9, T: 1e12,
+  };
+  return n * (mult[m[2]] ?? 1);
+}
+
+function pct(used: number, alloc: number): number {
+  return alloc > 0 ? Math.min(100, Math.round((used / alloc) * 100)) : 0;
 }
 
 function podToStatus(pod: any): PodStatusLike {
@@ -99,7 +144,7 @@ function statusToView(s: PodStatusLike, now: number): PodView {
   };
 }
 
-function nodeToView(node: any, pods: PodView[]): NodeView {
+function nodeToView(node: any, pods: PodView[], usage?: { cpu?: string; memory?: string }): NodeView {
   const conds: Record<string, boolean> = {};
   let ready = false;
   for (const c of node.status?.conditions ?? []) {
@@ -107,8 +152,11 @@ function nodeToView(node: any, pods: PodView[]): NodeView {
     if (c.type === 'Ready') ready = val;
     else conds[c.type] = val; // MemoryPressure/DiskPressure/PIDPressure/NetworkUnavailable
   }
-  const cpu = { usagePct: 0 };
-  const mem = { usagePct: 0 };
+  const alloc = node.status?.allocatable ?? {};
+  // CPU + memory usage % from metrics-server (when available); disk has no metrics-server source,
+  // so it stays 0 and node disk health is driven by the DiskPressure condition (deriveNodeHealth).
+  const cpu = { usagePct: usage ? pct(cpuToCores(usage.cpu), cpuToCores(alloc.cpu)) : 0 };
+  const mem = { usagePct: usage ? pct(memToBytes(usage.memory), memToBytes(alloc.memory)) : 0 };
   const disk = { usagePct: 0 };
   const net = { ready: conds.NetworkUnavailable !== true };
   const health = deriveNodeHealth({ ready, conditions: conds, cpu, mem, disk, net });
@@ -129,6 +177,7 @@ function nodeToView(node: any, pods: PodView[]): NodeView {
 export class KubeProvider implements ClusterProvider {
   private core: ReadOnlyCoreApi;
   private watcher?: ReadOnlyWatch;
+  private metrics?: ReadOnlyMetrics;
   private cbs: ((nodes: NodeView[]) => void)[] = [];
   private aborts: { abort(): void }[] = [];
 
@@ -138,6 +187,7 @@ export class KubeProvider implements ClusterProvider {
     }
     this.core = opts.core;
     this.watcher = opts.watch;
+    this.metrics = opts.metrics;
   }
 
   /** Build a KubeProvider bound to the real cluster. In-cluster (the Model A deployment) it uses
@@ -179,7 +229,10 @@ export class KubeProvider implements ClusterProvider {
           .then((r) => r.body),
     };
     const watch = new k8s.Watch(kc) as unknown as ReadOnlyWatch;
-    return new KubeProvider({ core, watch });
+    // metrics-server (metrics.k8s.io) for CPU/memory usage %. Read-only (GET). Absent metrics-server,
+    // getNodeMetrics rejects and usage gracefully stays 0 (see snapshot()).
+    const metrics = new k8s.Metrics(kc) as unknown as ReadOnlyMetrics;
+    return new KubeProvider({ core, watch, metrics });
   }
 
   onChange(cb: (nodes: NodeView[]) => void): void {
@@ -188,10 +241,16 @@ export class KubeProvider implements ClusterProvider {
 
   private async snapshot(): Promise<NodeView[]> {
     const now = Date.now();
-    const [nodeRes, podRes] = await Promise.all([
+    const [nodeRes, podRes, metricsRes] = await Promise.all([
       this.core.listNode(),
       this.core.listPodForAllNamespaces(),
+      // best-effort: no metrics-server → reject → usage stays 0 (deterministic signals still work)
+      this.metrics ? this.metrics.getNodeMetrics().catch(() => null) : Promise.resolve(null),
     ]);
+    const usageByNode = new Map<string, { cpu?: string; memory?: string }>();
+    for (const m of items(metricsRes)) {
+      if (m.metadata?.name) usageByNode.set(m.metadata.name, m.usage ?? {});
+    }
     const podsByNode = new Map<string, PodView[]>();
     for (const p of items(podRes)) {
       const view = statusToView(podToStatus(p), now);
@@ -199,7 +258,9 @@ export class KubeProvider implements ClusterProvider {
       list.push(view);
       podsByNode.set(view.node, list);
     }
-    return items(nodeRes).map((n: any) => nodeToView(n, podsByNode.get(n.metadata?.name) ?? []));
+    return items(nodeRes).map((n: any) =>
+      nodeToView(n, podsByNode.get(n.metadata?.name) ?? [], usageByNode.get(n.metadata?.name)),
+    );
   }
 
   async getNodes(): Promise<NodeView[]> {

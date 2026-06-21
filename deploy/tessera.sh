@@ -96,6 +96,7 @@ cmd_check_rbac() {
   expect yes list   nodes
   expect yes watch  pods
   expect yes get    pods/log
+  expect yes list   nodes.metrics.k8s.io
   expect no  create pods
   expect no  delete pods
   expect no  patch  nodes

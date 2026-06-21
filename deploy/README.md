@@ -82,11 +82,12 @@ ServiceAccount can only read — it asserts `can-i get pods = yes` and `can-i cr
 > pod-env read access, and **do not** expose the Service via LoadBalancer/Ingress without putting
 > authentication in front of it.
 
-## Known POC limitation
-Node **resource-usage** bars/chips (CPU/Mem/Disk %) read `0` on the real path — the KubeProvider
-uses node **conditions** (MemoryPressure/DiskPressure/Ready) and pod states, but does not yet read
-metrics-server. The honeycomb, node health, pod detail, crash blocks, and live updates all work
-against the real cluster. Wiring `metrics.k8s.io` (read-only) is the follow-up if you want real %.
+## Resource metrics
+Node **CPU and memory** usage % come from **metrics-server** (`metrics.k8s.io`, read-only). If
+metrics-server isn't installed, the app degrades gracefully to `0%` and still works off node
+conditions + pod states. **Disk %** stays `0` — metrics-server exposes no disk metric; node disk
+health is driven by the `DiskPressure` condition instead. Everything else (honeycomb, node health,
+pod detail, crash blocks, events, live log tail) works against the real cluster.
 
 ## Configuration reference (Deployment env)
 | Var | Value | Meaning |

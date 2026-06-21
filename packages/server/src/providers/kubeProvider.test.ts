@@ -3,11 +3,19 @@
 // (list/read/watch) are ever invoked — never create/patch/replace/delete.
 
 import { describe, expect, it, vi } from 'vitest';
-import { KubeProvider, type ReadOnlyCoreApi, type ReadOnlyWatch } from './kubeProvider';
+import {
+  KubeProvider,
+  cpuToCores,
+  memToBytes,
+  type ReadOnlyCoreApi,
+  type ReadOnlyMetrics,
+  type ReadOnlyWatch,
+} from './kubeProvider';
 
 const fakeNode = {
   metadata: { name: 'ip-10-0-0-1', labels: { 'node.kubernetes.io/instance-type': 'm5.large' } },
   status: {
+    allocatable: { cpu: '2', memory: '4000000Ki' },
     conditions: [
       { type: 'Ready', status: 'True' },
       { type: 'MemoryPressure', status: 'False' },
@@ -78,12 +86,25 @@ function makeWatch(log: string[]): ReadOnlyWatch {
   return recordingProxy(base, log);
 }
 
+function makeMetrics(log: string[]): ReadOnlyMetrics {
+  const base: ReadOnlyMetrics = {
+    getNodeMetrics: vi.fn(async () => ({
+      items: [{ metadata: { name: 'ip-10-0-0-1' }, usage: { cpu: '1', memory: '2000000Ki' } }],
+    })),
+  };
+  return recordingProxy(base, log);
+}
+
 const WRITE_PREFIXES = ['create', 'patch', 'replace', 'delete', 'put', 'post', 'connect', 'apply'];
 
 describe('KubeProvider — read-only across a full session', () => {
   it('only read verbs are accessed; node/pod/crash data maps correctly', async () => {
     const log: string[] = [];
-    const provider = new KubeProvider({ core: makeCore(log), watch: makeWatch(log) });
+    const provider = new KubeProvider({
+      core: makeCore(log),
+      watch: makeWatch(log),
+      metrics: makeMetrics(log),
+    });
 
     provider.onChange(() => {});
     await provider.start();
@@ -92,6 +113,9 @@ describe('KubeProvider — read-only across a full session', () => {
     expect(nodes).toHaveLength(1);
     expect(nodes[0].name).toBe('ip-10-0-0-1');
     expect(nodes[0].pods.length).toBe(2);
+    // usage % computed from metrics-server (1/2 cores, 2000000/4000000 Ki = 50% each)
+    expect(nodes[0].cpu.usagePct).toBe(50);
+    expect(nodes[0].mem.usagePct).toBe(50);
 
     const node = await provider.getNode('ip-10-0-0-1');
     expect(node).not.toBeNull();
@@ -114,6 +138,7 @@ describe('KubeProvider — read-only across a full session', () => {
     expect(accessed.has('listPodForAllNamespaces')).toBe(true);
     expect(accessed.has('readNamespacedPodLog')).toBe(true);
     expect(accessed.has('listNamespacedEvent')).toBe(true);
+    expect(accessed.has('getNodeMetrics')).toBe(true);
     expect(accessed.has('watch')).toBe(true);
 
     for (const name of accessed) {
@@ -122,5 +147,31 @@ describe('KubeProvider — read-only across a full session', () => {
         expect(lower.startsWith(bad), `unexpected write-ish call: ${name}`).toBe(false);
       }
     }
+  });
+
+  it('degrades to 0% usage when no metrics client is provided (no metrics-server)', async () => {
+    const log: string[] = [];
+    const provider = new KubeProvider({ core: makeCore(log), watch: makeWatch(log) });
+    const nodes = await provider.getNodes();
+    expect(nodes[0].cpu.usagePct).toBe(0);
+    expect(nodes[0].mem.usagePct).toBe(0);
+    expect(nodes[0].health).toBe('ok'); // deterministic signals still classify the node
+  });
+});
+
+describe('Kubernetes quantity parsers', () => {
+  it('cpuToCores handles n/u/m/k/plain', () => {
+    expect(cpuToCores('79257288n')).toBeCloseTo(0.0793, 3);
+    expect(cpuToCores('250m')).toBeCloseTo(0.25, 6);
+    expect(cpuToCores('2')).toBe(2);
+    expect(cpuToCores('1500m')).toBeCloseTo(1.5, 6);
+    expect(cpuToCores(undefined)).toBe(0);
+  });
+  it('memToBytes handles Ki/Mi/Gi/plain', () => {
+    expect(memToBytes('1Ki')).toBe(1024);
+    expect(memToBytes('8Gi')).toBe(8 * 1024 ** 3);
+    expect(memToBytes('237984Ki')).toBe(237984 * 1024);
+    expect(memToBytes('1048576')).toBe(1048576);
+    expect(memToBytes(undefined)).toBe(0);
   });
 });
