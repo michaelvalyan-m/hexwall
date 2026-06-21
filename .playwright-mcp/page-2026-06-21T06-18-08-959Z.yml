@@ -1,0 +1,50 @@
+- generic [ref=e2]:
+  - generic [ref=e62]:
+    - button "← back to wall" [ref=e63] [cursor=pointer]
+    - heading "k3d-tessera-test-server-0" [level=2] [ref=e64]
+    - generic [ref=e65]:
+      - text: k3s · 9 pods · ok
+      - generic [ref=e66]: 2 crit
+    - generic [ref=e67]:
+      - generic [ref=e68]:
+        - heading "Pods (9)" [level=3] [ref=e69]
+        - img [ref=e70]:
+          - button "crasher-5f46ff98f7-2rdst · Error (crit)" [ref=e71] [cursor=pointer]
+          - button "oneshot-t2lw2 · Completed (gone)" [ref=e72] [cursor=pointer]
+          - button "oom-78b956f6-gr6b9 · CrashLoopBackOff (crit)" [ref=e73] [cursor=pointer]
+          - button "web-867f57897c-phhvl (ok)" [ref=e74] [cursor=pointer]
+          - button "web-867f57897c-qzd2w (ok)" [ref=e75] [cursor=pointer]
+          - button "helm-install-traefik-crd-9tt2g · Completed (gone)" [ref=e76] [cursor=pointer]
+          - button "metrics-server-7b9c9c4b9c-5wg72 (ok)" [ref=e77] [cursor=pointer]
+          - button "svclb-traefik-fa113563-9295r (ok)" [ref=e78] [cursor=pointer]
+          - button "tessera-84c5664c96-qn9jh (ok)" [ref=e79] [cursor=pointer]
+      - generic [ref=e80]:
+        - heading "Resources" [level=3] [ref=e81]
+        - generic [ref=e83]:
+          - generic [ref=e84]: CPU
+          - generic [ref=e85]: 0%
+        - generic [ref=e88]:
+          - generic [ref=e89]: Memory
+          - generic [ref=e90]: 0%
+        - generic [ref=e93]:
+          - generic [ref=e94]: Disk
+          - generic [ref=e95]: 0%
+        - generic [ref=e98]:
+          - generic [ref=e99]: Network
+          - generic [ref=e100]: ready
+        - heading "Conditions" [level=3] [ref=e103]
+        - generic [ref=e104]:
+          - generic [ref=e105]: Ready
+          - generic [ref=e106]: "MemoryPressure: false"
+          - generic [ref=e107]: "DiskPressure: false"
+          - generic [ref=e108]: "PIDPressure: false"
+  - group "Color theme" [ref=e44]:
+    - button "Light" [ref=e45] [cursor=pointer]:
+      - generic [ref=e46]: ☀
+      - generic [ref=e47]: Light
+    - button "System" [pressed] [ref=e48] [cursor=pointer]:
+      - generic [ref=e49]: ◐
+      - generic [ref=e50]: System
+    - button "Dark" [ref=e51] [cursor=pointer]:
+      - generic [ref=e52]: ☾
+      - generic [ref=e53]: Dark

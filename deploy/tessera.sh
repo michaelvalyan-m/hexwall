@@ -85,7 +85,10 @@ cmd_check_rbac() {
   say "verifying read-only RBAC for $sa"
   ok=0
   expect() { # expect <yes|no> <verb> <resource>
-    got=$(kubectl auth can-i "$2" "$3" --as="$sa" 2>/dev/null || echo no)
+    # `kubectl auth can-i` prints yes/no to stdout AND exits non-zero for "no"; capture stdout and
+    # use `|| true` OUTSIDE the substitution so set -e doesn't fire and "no" isn't duplicated.
+    got=$(kubectl auth can-i "$2" "$3" --as="$sa" 2>/dev/null) || true
+    [ -n "$got" ] || got=no
     if [ "$got" = "$1" ]; then printf '  \033[32mok\033[0m   can-i %-7s %-12s = %s\n' "$2" "$3" "$got";
     else printf '  \033[31mFAIL\033[0m can-i %-7s %-12s = %s (expected %s)\n' "$2" "$3" "$got" "$1"; ok=1; fi
   }

@@ -151,7 +151,33 @@ export class KubeProvider implements ClusterProvider {
     } else {
       kc.loadFromDefault();
     }
-    const core = kc.makeApiClient(k8s.CoreV1Api) as unknown as ReadOnlyCoreApi;
+    // @kubernetes/client-node@0.22 uses POSITIONAL params and returns { response, body }.
+    // Our ReadOnlyCoreApi is the object-style v1.x convention (also what the unit-test mock uses).
+    // Adapt at this one boundary so the rest of the code + the read-only contract are unchanged.
+    // Still strictly read-only: only list/read methods are wired (no create/patch/replace/delete).
+    const api = kc.makeApiClient(k8s.CoreV1Api);
+    const core: ReadOnlyCoreApi = {
+      listNode: () => api.listNode(), // { body: V1NodeList }; items() unwraps .body.items
+      listPodForAllNamespaces: () => api.listPodForAllNamespaces(),
+      listNamespacedEvent: ({ namespace }) => api.listNamespacedEvent(namespace),
+      readNamespacedPodLog: ({ namespace, name, previous, tailLines }) =>
+        // positional: (name, namespace, container, follow, insecureSkipTLS, limitBytes, pretty,
+        //              previous, sinceSeconds, tailLines, ...); unwrap the { body: string }.
+        api
+          .readNamespacedPodLog(
+            name,
+            namespace,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            previous,
+            undefined,
+            tailLines,
+          )
+          .then((r) => r.body),
+    };
     const watch = new k8s.Watch(kc) as unknown as ReadOnlyWatch;
     return new KubeProvider({ core, watch });
   }
