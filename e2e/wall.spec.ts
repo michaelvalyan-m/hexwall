@@ -188,6 +188,16 @@ test('13. theme switcher toggles light / dark / system', async ({ page }) => {
   await expect(page.getByTestId('theme-switcher')).toBeVisible();
 });
 
+test('14. URL routing — /cell/<cluster-id> renders the honeycomb wall (PLATFORM_MODEL §9.5)', async ({
+  page,
+}) => {
+  // Navigate directly to the full Tessera cell URL (bypasses the / → /cell/<id> redirect).
+  await page.goto('/cell/aws/123456789012/eks/prod-eks-use1');
+  await expect(page.getByTestId('wall')).toBeVisible();
+  await expect(page.getByTestId('folded-pill')).toContainText('48 healthy nodes folded');
+  await expect(page.getByTestId('node-box')).toHaveCount(5);
+});
+
 test('9. screenshots — wall, node-detail, pod-detail (artifacts)', async ({ page }) => {
   await page.screenshot({ path: 'e2e/__screens__/01-wall.png', fullPage: true });
 

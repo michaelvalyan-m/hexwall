@@ -2,7 +2,7 @@
 // keeps the rendered box count small.
 
 import { describe, expect, it } from 'vitest';
-import { RollupEngine } from '@hexwall/shared';
+import { RollupEngine } from '@tessera/shared';
 import { buildBigFixture } from './providers/fixtures';
 
 describe('big fixture performance', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { highlight, type LogLine, type PodDetail as PodDetailT } from '@hexwall/shared';
+import { highlight, type LogLine, type PodDetail as PodDetailT } from '@tessera/shared';
 import { api, subscribePodLogs } from '../api';
 import { LogLines } from './LogLines';
 

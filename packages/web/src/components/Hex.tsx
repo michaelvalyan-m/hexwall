@@ -1,4 +1,4 @@
-import type { Severity } from '@hexwall/shared';
+import type { Severity } from '@tessera/shared';
 
 /** Pointy-top hexagon vertices (a vertex straight up). */
 export function hexPoints(cx: number, cy: number, r: number): string {

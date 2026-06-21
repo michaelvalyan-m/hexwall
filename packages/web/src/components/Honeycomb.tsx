@@ -1,4 +1,4 @@
-import type { PodView } from '@hexwall/shared';
+import type { PodView } from '@tessera/shared';
 import { Hex, hexLayout } from './Hex';
 
 interface HoneycombProps {

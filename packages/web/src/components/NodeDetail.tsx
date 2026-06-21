@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CONFIG, type NodeResource, type NodeView, type Severity } from '@hexwall/shared';
+import { CONFIG, type NodeResource, type NodeView, type Severity } from '@tessera/shared';
 import { api } from '../api';
 import { Honeycomb } from './Honeycomb';
 

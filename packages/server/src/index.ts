@@ -1,9 +1,9 @@
 // Server entrypoint. Selects a provider via env, wires the clock + timeline, and listens.
-//   HEXWALL_PROVIDER = mock (default) | kube
-//   HEXWALL_FIXTURE  = (canonical, default) | big
-//   HEXWALL_TEST_HOOKS = 1  -> ManualClock + GET /api/_test/advance, no auto timeline
-//   HEXWALL_SERVE_WEB  = 1  -> serve packages/web/dist (single origin)
-//   HEXWALL_DEV_TIMELINE = 1 -> real-time looping timeline (used by `npm run dev`)
+//   TESSERA_PROVIDER    = mock (default) | kube
+//   TESSERA_FIXTURE     = (canonical, default) | big
+//   TESSERA_TEST_HOOKS  = 1  -> ManualClock + GET /api/_test/advance, no auto timeline
+//   TESSERA_SERVE_WEB   = 1  -> serve packages/web/dist (single origin)
+//   TESSERA_DEV_TIMELINE = 1 -> real-time looping timeline (used by `npm run dev`)
 
 import { buildServer } from './app';
 import { buildCanonicalFixture, buildBigFixture, TIMELINE_OFFSETS } from './providers/fixtures';
@@ -12,10 +12,10 @@ import { ManualClock, RealClock, type Clock, type ClusterProvider } from './prov
 
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? '0.0.0.0';
-const useTestHooks = process.env.HEXWALL_TEST_HOOKS === '1';
-const serveWeb = process.env.HEXWALL_SERVE_WEB === '1';
-const devTimeline = process.env.HEXWALL_DEV_TIMELINE === '1';
-const providerKind = process.env.HEXWALL_PROVIDER ?? 'mock';
+const useTestHooks = process.env.TESSERA_TEST_HOOKS === '1';
+const serveWeb = process.env.TESSERA_SERVE_WEB === '1';
+const devTimeline = process.env.TESSERA_DEV_TIMELINE === '1';
+const providerKind = process.env.TESSERA_PROVIDER ?? 'mock';
 
 const FIXED_EPOCH = Date.UTC(2026, 5, 20, 11, 5, 0);
 
@@ -23,6 +23,7 @@ async function main(): Promise<void> {
   let provider: ClusterProvider;
   let clock: Clock;
   let cluster = 'cluster';
+  let cellId = 'cluster';
   let mock: MockProvider | undefined;
 
   if (providerKind === 'kube') {
@@ -31,12 +32,14 @@ async function main(): Promise<void> {
     const kube = await KubeProvider.createReal();
     await kube.start();
     provider = kube;
-    cluster = process.env.HEXWALL_CLUSTER ?? 'kube-cluster';
+    cluster = process.env.TESSERA_CLUSTER ?? 'kube-cluster';
+    cellId = cluster;
   } else {
     clock = useTestHooks ? new ManualClock(FIXED_EPOCH) : new RealClock();
     const fixture =
-      process.env.HEXWALL_FIXTURE === 'big' ? buildBigFixture() : buildCanonicalFixture();
+      process.env.TESSERA_FIXTURE === 'big' ? buildBigFixture() : buildCanonicalFixture();
     cluster = fixture.cluster;
+    cellId = fixture.cellId;
     mock = new MockProvider({ fixture, clock });
     provider = mock;
   }
@@ -45,6 +48,7 @@ async function main(): Promise<void> {
     provider,
     clock,
     cluster,
+    cellId,
     serveWeb,
     enableTestHooks: useTestHooks,
     logger: false,
@@ -69,12 +73,12 @@ async function main(): Promise<void> {
 
   await server.app.listen({ port: PORT, host: HOST });
   console.log(
-    `[hexwall] server on http://localhost:${PORT}  provider=${providerKind}` +
+    `[tessera] server on http://localhost:${PORT}  provider=${providerKind}` +
       `${useTestHooks ? ' (test-hooks)' : ''}${serveWeb ? ' (serving web)' : ''}`,
   );
 }
 
 main().catch((err) => {
-  console.error('[hexwall] fatal', err);
+  console.error('[tessera] fatal', err);
   process.exit(1);
 });

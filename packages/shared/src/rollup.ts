@@ -1,11 +1,36 @@
 // Quartile rollup (FUNCTIONAL_SPEC §4) + wall sort (§6). Pure.
 
-import { SEVERITY_RANK } from './config';
+import { SEVERITY_RANK, worst, worstOf } from './config';
 import { nodeChip } from './nodeHealth';
-import type { NodeView, PodView, QuartileBox, Severity } from './types';
+import type { NodeView, PodView, QuartileBox, Rollup, Severity } from './types';
 
 export function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
+}
+
+// Intensity weights and scale (PLATFORM_MODEL §5). Lives in config in the full platform.
+const W_FRACTION = 0.5;
+const W_MAGNITUDE = 0.5;
+const LOG_MAX = 4; // log10(10000) — 10k affected pods = full intensity
+
+// Compute the generic Rollup for a k8s node from its pods + the node's own health.
+// nodeHealth is factored into rollup.severity so the Cell tree aggregates correctly
+// (e.g. a crit-border node with all-ok pods still propagates crit severity upward).
+export function computeNodeRollup(pods: PodView[], nodeHealth: Severity = 'ok'): Rollup {
+  const bySeverity: Record<Severity, number> = { ok: 0, warn: 0, crit: 0, gone: 0 };
+  for (const p of pods) bySeverity[p.state]++;
+  const active = pods.filter((p) => p.state !== 'gone');
+  const total = active.length;
+  const affected = bySeverity.warn + bySeverity.crit;
+  const affectedFraction = total > 0 ? affected / total : 0;
+  const podSeverity: Severity = active.length > 0 ? worstOf(active.map((p) => p.state)) : 'ok';
+  const severity = worst(podSeverity, nodeHealth);
+  const intensity = clamp(
+    W_FRACTION * affectedFraction + W_MAGNITUDE * Math.min(1, Math.log10(affected + 1) / LOG_MAX),
+    0,
+    1,
+  );
+  return { severity, total, affected, affectedFraction, intensity, bySeverity };
 }
 
 export interface QuartileResult {
@@ -17,27 +42,23 @@ export interface QuartileResult {
   hexes: Severity[]; // length 4
 }
 
+// Derive the quartile presentation (hexes) from pods. Does NOT include nodeHealth — the hexes
+// only represent pod state; the border color (nodeHealth) is tracked separately on QuartileBox.
 export function computeQuartiles(pods: PodView[]): QuartileResult {
-  const active = pods.filter((p) => p.state !== 'gone');
-  const affectedPods = active.filter((p) => p.state === 'warn' || p.state === 'crit');
-  const affected = affectedPods.length;
-  const fraction = active.length === 0 ? 0 : affected / active.length;
-
-  const litHexes = clamp(Math.ceil(fraction * 4), 0, 4);
-
-  const anyCrit = affectedPods.some((p) => p.state === 'crit');
-  const anyWarn = affectedPods.some((p) => p.state === 'warn');
-  const litSeverity: Severity = anyCrit ? 'crit' : anyWarn ? 'warn' : 'ok';
-
+  const r = computeNodeRollup(pods); // pod-only rollup (no nodeHealth override)
+  const litHexes = clamp(Math.ceil(r.affectedFraction * 4), 0, 4);
+  const litSeverity: Severity =
+    r.bySeverity.crit > 0 ? 'crit' : r.bySeverity.warn > 0 ? 'warn' : 'ok';
   const hexes: Severity[] = [0, 1, 2, 3].map((i) => (i < litHexes ? litSeverity : 'ok'));
-  const affectedPct = Math.round(fraction * 100);
-
-  return { podTotal: active.length, affected, affectedPct, litHexes, litSeverity, hexes };
+  const affectedPct = Math.round(r.affectedFraction * 100);
+  return { podTotal: r.total, affected: r.affected, affectedPct, litHexes, litSeverity, hexes };
 }
 
 // Build a QuartileBox from a NodeView. `changedAt` is filled by the engine (defaults to 0).
 export function computeBox(node: NodeView, changedAt = 0): QuartileBox {
   const q = computeQuartiles(node.pods);
+  // Full rollup includes nodeHealth so crit-border nodes propagate upward correctly (PLATFORM_MODEL §4).
+  const rollup = computeNodeRollup(node.pods, node.health);
   const foldEligible = node.health === 'ok' && q.litHexes === 0;
   return {
     kind: 'node',
@@ -53,6 +74,7 @@ export function computeBox(node: NodeView, changedAt = 0): QuartileBox {
     chip: nodeChip(node),
     foldEligible,
     changedAt,
+    rollup,
   };
 }
 

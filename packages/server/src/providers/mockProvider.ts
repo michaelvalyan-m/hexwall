@@ -1,7 +1,7 @@
 // MockProvider — plays the deterministic canonical fixture + the scripted timeline
 // (MOCK_SCENARIOS §1–§3). Read-only; no mutation method exists.
 
-import { extractCrash, highlightAll, type NodeView, type PodDetail } from '@hexwall/shared';
+import { extractCrash, highlightAll, type NodeView, type PodDetail } from '@tessera/shared';
 import {
   buildBigFixture,
   buildCanonicalFixture,

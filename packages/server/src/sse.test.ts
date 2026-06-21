@@ -7,7 +7,7 @@ import { buildServer, type HexwallServer } from './app';
 import { buildCanonicalFixture } from './providers/fixtures';
 import { MockProvider } from './providers/mockProvider';
 import { ManualClock } from './providers/provider';
-import type { ClusterSnapshot } from '@hexwall/shared';
+import type { ClusterSnapshot } from '@tessera/shared';
 
 let current: HexwallServer | undefined;
 afterEach(async () => {

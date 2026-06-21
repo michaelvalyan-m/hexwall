@@ -39,6 +39,53 @@ export const NodeViewSchema = z.object({
   pods: z.array(PodViewSchema),
 });
 
+// ---- Tessera Cell model schemas (PLATFORM_MODEL §3) ----
+
+export const RollupSchema = z.object({
+  severity: SeveritySchema,
+  total: z.number(),
+  affected: z.number(),
+  affectedFraction: z.number(),
+  intensity: z.number(),
+  bySeverity: z.object({
+    ok: z.number(),
+    warn: z.number(),
+    crit: z.number(),
+    gone: z.number(),
+  }),
+});
+
+// Recursive Cell schema (children are Cells too).
+type CellSchemaType = {
+  id: string;
+  level: string;
+  kind: string;
+  label: string;
+  provider?: string;
+  rollup: z.infer<typeof RollupSchema>;
+  renderKey?: string;
+  changedAt: number;
+  children?: CellSchemaType[];
+  childrenRef?: string;
+};
+
+export const CellSchema: z.ZodType<CellSchemaType> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    level: z.string(),
+    kind: z.string(),
+    label: z.string(),
+    provider: z.string().optional(),
+    rollup: RollupSchema,
+    renderKey: z.string().optional(),
+    changedAt: z.number(),
+    children: z.array(CellSchema).optional(),
+    childrenRef: z.string().optional(),
+  }),
+);
+
+// ---- EKS wall schemas ----
+
 export const QuartileBoxSchema = z.object({
   kind: z.enum(['node', 'workload']),
   id: z.string(),
@@ -53,10 +100,12 @@ export const QuartileBoxSchema = z.object({
   chip: z.string(),
   foldEligible: z.boolean(),
   changedAt: z.number(),
+  rollup: RollupSchema,
 });
 
 export const ClusterSnapshotSchema = z.object({
   cluster: z.string(),
+  cellId: z.string(),
   generatedAt: z.number(),
   boxes: z.array(QuartileBoxSchema),
   healthyFolded: z.number(),

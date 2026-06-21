@@ -14,7 +14,7 @@ import {
   type PodEvent,
   type PodStatusLike,
   type PodView,
-} from '@hexwall/shared';
+} from '@tessera/shared';
 import type { ClusterProvider } from './provider';
 
 // The narrow read-only surface this provider depends on. Only list/read methods — by

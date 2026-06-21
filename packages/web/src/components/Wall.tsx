@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { formatAge, type ClusterSnapshot, type NodeView } from '@hexwall/shared';
+import { formatAge, type ClusterSnapshot, type NodeView } from '@tessera/shared';
 import { api } from '../api';
 import { NodeBox } from './NodeBox';
 

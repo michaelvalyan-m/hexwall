@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import type { LogLine } from '@hexwall/shared';
+import type { LogLine } from '@tessera/shared';
 
 interface LogLinesProps {
   lines: LogLine[];

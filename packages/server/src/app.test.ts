@@ -4,6 +4,7 @@ import { buildCanonicalFixture } from './providers/fixtures';
 import { MockProvider } from './providers/mockProvider';
 import { ManualClock } from './providers/provider';
 import {
+  CellSchema,
   ClusterSnapshotSchema,
   HealthyNodesSchema,
   NodeViewSchema,
@@ -20,6 +21,7 @@ function makeServer(): { server: HexwallServer; mock: MockProvider; clock: Manua
     provider: mock,
     clock,
     cluster: fixture.cluster,
+    cellId: fixture.cellId,
     enableTestHooks: true,
   });
   mock.start(); // seed t0
@@ -44,6 +46,7 @@ describe('GET /api/snapshot', () => {
     expect(status).toBe(200);
     const snap = ClusterSnapshotSchema.parse(body);
     expect(snap.cluster).toBe('prod-eks-use1');
+    expect(snap.cellId).toBe('aws/123456789012/eks/prod-eks-use1');
     expect(snap.healthyFolded).toBe(48);
     expect(snap.boxes.length).toBe(5);
     expect(snap.totals.nodes).toBe(53);
@@ -144,6 +147,25 @@ describe('GET /api/healthy', () => {
     const parsed = HealthyNodesSchema.parse(body);
     expect(parsed.nodes.length).toBe(48);
     expect(parsed.nodes.every((n) => n.health === 'ok')).toBe(true);
+  });
+});
+
+describe('GET /api/cell/:id — Cell tree (PLATFORM_MODEL §6)', () => {
+  it('returns a Cell with renderKey eks-cluster for the canonical cluster id', async () => {
+    const { server } = makeServer();
+    const { status, body } = await json(server, '/api/cell/aws/123456789012/eks/prod-eks-use1');
+    expect(status).toBe(200);
+    const cell = CellSchema.parse(body);
+    expect(cell.renderKey).toBe('eks-cluster');
+    expect(cell.level).toBe('resource');
+    expect(cell.kind).toBe('eks');
+    expect(cell.rollup.total).toBeGreaterThan(0);
+    expect(cell.rollup.severity).toBeTruthy();
+  });
+
+  it('returns 404 for an unknown cell id', async () => {
+    const { server } = makeServer();
+    expect((await json(server, '/api/cell/aws/123456789012/eks/unknown')).status).toBe(404);
   });
 });
 

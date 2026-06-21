@@ -1,5 +1,6 @@
-// Public barrel for @hexwall/shared.
+// Public barrel for @tessera/shared.
 export * from './types';
+export * from './cell';
 export * from './config';
 export * from './logTokens';
 export * from './podState';

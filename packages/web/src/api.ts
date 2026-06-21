@@ -1,6 +1,6 @@
 // REST + SSE client. Same-origin (server serves the web in prod/e2e; Vite proxies /api in dev).
 
-import type { ClusterSnapshot, NodeView, PodDetail } from '@hexwall/shared';
+import type { Cell, ClusterSnapshot, NodeView, PodDetail } from '@tessera/shared';
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -14,6 +14,9 @@ export const api = {
   pod: (ns: string, name: string) =>
     getJSON<PodDetail>(`/api/pod/${encodeURIComponent(ns)}/${encodeURIComponent(name)}`),
   healthy: () => getJSON<{ nodes: NodeView[] }>('/api/healthy'),
+  // Fetch a Tessera Cell by its global path id (PLATFORM_MODEL §6). The cell id contains
+  // slashes and must NOT be percent-encoded — the server route matches on the full path.
+  cell: (id: string) => getJSON<Cell>(`/api/cell/${id}`),
 };
 
 /** Subscribe to live cluster snapshots. Returns an unsubscribe function. */

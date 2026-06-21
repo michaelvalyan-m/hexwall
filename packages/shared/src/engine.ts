@@ -68,7 +68,7 @@ export class RollupEngine {
     return now - eligibleSince >= this.hysteresisMs;
   }
 
-  computeSnapshot(nodes: NodeView[], now: number, cluster = 'cluster'): ClusterSnapshot {
+  computeSnapshot(nodes: NodeView[], now: number, cluster = 'cluster', cellId = cluster): ClusterSnapshot {
     const boxes: QuartileBox[] = [];
     const foldedIds = new Set<string>();
     let nodesCrit = 0;
@@ -98,6 +98,7 @@ export class RollupEngine {
 
     return {
       cluster,
+      cellId,
       generatedAt: now,
       boxes: sortBoxes(boxes),
       healthyFolded: foldedIds.size,

@@ -1,9 +1,9 @@
 {
-  "name": "hexwall",
+  "name": "tessera",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Read-only Kubernetes/EKS monitoring wall (POC)",
+  "description": "Tessera — zoomable cloud monitoring platform. Hexwall is the EKS leaf renderer.",
   "workspaces": [
     "packages/shared",
     "packages/server",

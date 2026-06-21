@@ -31,16 +31,16 @@ process.on('SIGTERM', () => shutdown(0));
 
 run('server', 'npx', ['tsx', 'packages/server/src/index.ts'], {
   PORT: API_PORT,
-  HEXWALL_PROVIDER: process.env.HEXWALL_PROVIDER ?? 'mock',
-  HEXWALL_DEV_TIMELINE: '1',
+  TESSERA_PROVIDER: process.env.TESSERA_PROVIDER ?? 'mock',
+  TESSERA_DEV_TIMELINE: '1',
 });
 
 run('web', 'npx', ['vite', 'packages/web', '--port', WEB_PORT, '--strictPort'], {
-  HEXWALL_API_TARGET: `http://127.0.0.1:${API_PORT}`,
+  TESSERA_API_TARGET: `http://127.0.0.1:${API_PORT}`,
 });
 
 setTimeout(() => {
-  console.log('\n  Hexwall dev server');
+  console.log('\n  Tessera dev server  (Hexwall — EKS monitoring wall)');
   console.log(`  →  Web UI:  http://localhost:${WEB_PORT}`);
   console.log(`  →  API:     http://localhost:${API_PORT}/api/snapshot\n`);
 }, 1500);

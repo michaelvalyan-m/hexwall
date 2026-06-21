@@ -1,7 +1,7 @@
 // ClusterProvider interface (ARCHITECTURE §6). The interface exposes NO write method — adding
 // one is a spec violation (FUNCTIONAL_SPEC §9). All methods are read-only.
 
-import type { NodeView, PodDetail } from '@hexwall/shared';
+import type { Cell, NodeView, PodDetail } from '@tessera/shared';
 
 export interface ClusterProvider {
   /** Push the current cluster state; called on watch events or mock ticks. */
@@ -11,6 +11,18 @@ export interface ClusterProvider {
   getPodDetail(ns: string, name: string): Promise<PodDetail | null>;
   /** Returns an unsubscribe function. */
   streamPodLogs(ns: string, name: string, cb: (line: string) => void): () => void;
+}
+
+// ---- Plugin adapter (PLATFORM_MODEL §7) ----
+
+/** Tessera resource adapter — how a service type (EKS, Lambda, RDS…) plugs into the map. */
+export interface ResourceAdapter {
+  serviceKind: string; // 'eks' | 'gke' | 'lambda' | ...
+  renderKey: string; // 'eks-cluster' | 'lambda-fn' | ...
+  /** Discover all resource-level Cells under an account. */
+  discover(account: { provider: string; accountId: string }): Promise<Cell[]>;
+  /** Full Cell tree (resource + its subtree) for a given resource id. */
+  resourceTree(resourceId: string): Promise<Cell>;
 }
 
 /** Deterministic clock abstraction so the engine + mock timeline are testable. */

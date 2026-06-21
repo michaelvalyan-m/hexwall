@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = Number(process.env.HEXWALL_E2E_PORT ?? 8123);
+const PORT = Number(process.env.TESSERA_E2E_PORT ?? 8123);
 const BASE = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
@@ -24,9 +24,9 @@ export default defineConfig({
     timeout: 60_000,
     env: {
       PORT: String(PORT),
-      HEXWALL_TEST_HOOKS: '1',
-      HEXWALL_SERVE_WEB: '1',
-      HEXWALL_PROVIDER: 'mock',
+      TESSERA_TEST_HOOKS: '1',
+      TESSERA_SERVE_WEB: '1',
+      TESSERA_PROVIDER: 'mock',
     },
   },
 });

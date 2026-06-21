@@ -110,6 +110,7 @@ describe('sortBoxes — FUNCTIONAL_SPEC §6 (see DECISIONS D1)', () => {
       chip: 'healthy',
       foldEligible: false,
       changedAt: 0,
+      rollup: { severity: 'ok', total: 10, affected: 0, affectedFraction: 0, intensity: 0, bySeverity: { ok: 10, warn: 0, crit: 0, gone: 0 } },
       ...partial,
     };
   }

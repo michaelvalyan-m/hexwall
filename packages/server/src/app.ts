@@ -7,7 +7,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { RollupEngine, type ClusterSnapshot, type NodeView } from '@hexwall/shared';
+import {
+  RollupEngine,
+  boxToCell,
+  buildResourceCell,
+  computeBox,
+  type Cell,
+  type ClusterSnapshot,
+  type NodeView,
+} from '@tessera/shared';
 import type { Clock, ClusterProvider } from './providers/provider';
 import type { MockProvider } from './providers/mockProvider';
 import type { TimelineLabel } from './providers/fixtures';
@@ -16,6 +24,7 @@ export interface BuildServerOptions {
   provider: ClusterProvider;
   clock: Clock;
   cluster?: string;
+  cellId?: string; // global path id (PLATFORM_MODEL §6); defaults to cluster
   serveWeb?: boolean;
   enableTestHooks?: boolean;
   logger?: boolean;
@@ -42,6 +51,7 @@ function sseHeaders(reply: { raw: import('node:http').ServerResponse }): void {
 export function buildServer(opts: BuildServerOptions): HexwallServer {
   const { provider, clock } = opts;
   const cluster = opts.cluster ?? 'cluster';
+  const cellId = opts.cellId ?? cluster;
   const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true });
 
   const engine = new RollupEngine();
@@ -56,6 +66,7 @@ export function buildServer(opts: BuildServerOptions): HexwallServer {
   // emit) must be the one that seeds it, so initial-eligible nodes fold immediately (DECISIONS D3).
   let latestSnapshot: ClusterSnapshot = {
     cluster,
+    cellId,
     generatedAt: clock.now(),
     boxes: [],
     healthyFolded: 0,
@@ -66,7 +77,7 @@ export function buildServer(opts: BuildServerOptions): HexwallServer {
 
   provider.onChange((nodes) => {
     latestNodes = nodes;
-    latestSnapshot = engine.computeSnapshot(nodes, clock.now(), cluster);
+    latestSnapshot = engine.computeSnapshot(nodes, clock.now(), cluster, cellId);
     for (const sub of snapshotSubs) sub(latestSnapshot);
   });
 
@@ -91,6 +102,27 @@ export function buildServer(opts: BuildServerOptions): HexwallServer {
     const detail = await provider.getPodDetail(req.params.ns, req.params.name);
     if (!detail) return reply.code(404).send({ error: 'pod not found' });
     return detail;
+  });
+
+  // ---- Cell tree (PLATFORM_MODEL §6) — GET /api/cell/<global-path-id> ----
+  // Returns the Cell for the given id. For the EKS resource cell, includes node children.
+  // Higher-level stubs (service, account, provider, estate) are built on-the-fly from the
+  // current snapshot so they always reflect live state.
+  app.get<{ Params: { '*': string } }>('/api/cell/*', async (req, reply) => {
+    const id = (req.params as Record<string, string>)['*'];
+
+    if (id === cellId) {
+      // EKS resource cell: build from the engine's current processed state so changedAt,
+      // sort order, and fold state are all consistent with the live snapshot.
+      const foldedIds = engine.getFoldedIds();
+      const foldedCells: Cell[] = latestNodes
+        .filter((n) => foldedIds.has(n.name))
+        .map((n) => boxToCell(computeBox(n), cellId));
+      const visibleCells: Cell[] = latestSnapshot.boxes.map((b) => boxToCell(b, cellId));
+      return buildResourceCell(cellId, cluster, [...visibleCells, ...foldedCells], latestSnapshot.generatedAt);
+    }
+
+    return reply.code(404).send({ error: 'cell not found', id });
   });
 
   // ---- SSE: live cluster snapshots ----

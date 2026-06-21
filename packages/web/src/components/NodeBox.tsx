@@ -1,4 +1,4 @@
-import type { QuartileBox } from '@hexwall/shared';
+import type { QuartileBox } from '@tessera/shared';
 import { HexTile } from './Hex';
 
 interface NodeBoxProps {

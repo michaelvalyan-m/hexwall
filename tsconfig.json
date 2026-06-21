@@ -20,8 +20,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@hexwall/shared": ["packages/shared/src/index.ts"],
-      "@hexwall/shared/*": ["packages/shared/src/*"]
+      "@tessera/shared": ["packages/shared/src/index.ts"],
+      "@tessera/shared/*": ["packages/shared/src/*"]
     }
   },
   "include": [

@@ -10,7 +10,7 @@ import {
   type PodEvent,
   type PodStatusLike,
   type PodView,
-} from '@hexwall/shared';
+} from '@tessera/shared';
 
 export interface PodRecord {
   view: PodView;
@@ -22,6 +22,7 @@ export interface PodRecord {
 
 export interface Fixture {
   cluster: string;
+  cellId: string; // global path id (PLATFORM_MODEL §6)
   nodes: NodeView[];
   records: Map<string, PodRecord>; // key `${namespace}/${name}`
 }
@@ -360,6 +361,8 @@ function buildHealthyNode(name: string, index: number, registry: Map<string, Pod
 }
 
 export const CLUSTER_NAME = 'prod-eks-use1';
+// Global path id for the canonical EKS cluster (PLATFORM_MODEL §6).
+export const CLUSTER_CELL_ID = 'aws/123456789012/eks/prod-eks-use1';
 
 export function buildCanonicalFixture(): Fixture {
   const registry = new Map<string, PodRecord>();
@@ -371,7 +374,7 @@ export function buildCanonicalFixture(): Fixture {
     build245(registry),
     build308(registry),
   ];
-  return { cluster: CLUSTER_NAME, nodes: [...healthy, ...problems], records: registry };
+  return { cluster: CLUSTER_NAME, cellId: CLUSTER_CELL_ID, nodes: [...healthy, ...problems], records: registry };
 }
 
 // ---- Timeline mutation for ip-10-0-6-77 (MOCK_SCENARIOS §3) ----
@@ -408,5 +411,5 @@ export function buildBigFixture(nodeCount = 400): Fixture {
   }
   // a handful of problems
   nodes.push(build912(registry), build730(registry), build491(registry));
-  return { cluster: 'big-eks', nodes, records: registry };
+  return { cluster: 'big-eks', cellId: 'aws/123456789012/eks/big-eks', nodes, records: registry };
 }
