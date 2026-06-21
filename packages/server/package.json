@@ -1,0 +1,14 @@
+{
+  "name": "@hexwall/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@fastify/static": "^7.0.4",
+    "@kubernetes/client-node": "^0.22.1",
+    "@hexwall/shared": "*",
+    "fastify": "^4.28.1",
+    "zod": "^3.23.8"
+  }
+}
